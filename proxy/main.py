@@ -9,7 +9,7 @@ from gevent import monkey; monkey.patch_all()
 from time import sleep
 
 # Related 3rd party.
-from bottle import route, run
+from bottle import route, run, template
 
 
 ################################################################################
@@ -17,8 +17,8 @@ from bottle import route, run
 ################################################################################
 
 @route('/')
-def hello():
-    return 'Hello, world!'
+def proxy():
+    return template('proxy')
 
 
 @route('/foo')
