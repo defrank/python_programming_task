@@ -1,0 +1,13 @@
+version: "2.0"
+services:
+    proxy:
+        restart: always
+        build: ./proxy/
+        command: ["python", "main.py"]
+        tty: true
+        expose:
+            - "8080"
+        ports:
+            - "8080:8080"
+        volumes:
+            - ./proxy:/app

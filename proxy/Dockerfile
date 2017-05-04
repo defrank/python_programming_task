@@ -7,10 +7,6 @@ WORKDIR /app
 # Setup app.
 COPY . /app
 
-# Install system dependencies.
-RUN apt-get update && apt-get install -y \
-        vim
-
 # Install Python dependencies.
 RUN pip install -r requirements.txt
 
