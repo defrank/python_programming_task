@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
     <head>
-    </head>
+        <title>{{ title }}</title>
+    </head
 
     <body>
+        <h1>{{ title }}</h1>
         <form>
             <style scoped="scoped">
                 form label::after {
