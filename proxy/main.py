@@ -41,16 +41,20 @@ def rendered(name, **kwargs):
 # VIEWS
 ################################################################################
 
-@route('/')
+@route('/', method='GET')
 def preproxy():
     """The view that asks the user what to proxy."""
     return rendered('proxy')
 
 
-@route('/foo')
-def foobar():
-    sleep(20)
-    return 'foobar for 20 seconds!'
+@route('/', method='POST')
+def proxy():
+    return 'Not implemented!'
+
+
+@route('/stats', method='GET')
+def stats():
+    return 'Not implemented!'
 
 
 ################################################################################

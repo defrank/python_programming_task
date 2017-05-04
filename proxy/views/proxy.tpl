@@ -6,7 +6,7 @@
 
     <body>
         <h1>{{ title }}</h1>
-        <form>
+        <form method="POST">
             <style scoped="scoped">
                 form label::after {
                     content: ':';
