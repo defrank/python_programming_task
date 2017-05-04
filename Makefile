@@ -29,3 +29,6 @@ restart :
 
 ssh : copy_id
 	docker exec -it $(shell ${PASTE}) /bin/bash
+
+py : copy_id
+	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
