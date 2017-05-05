@@ -2,6 +2,8 @@ FROM python:3.5-slim
 
 MAINTAINER Derek M. Frank <derek at frank dot sh>
 
+ENV DB /var/tmp/proxy.sqlite
+
 WORKDIR /app
 
 # Setup app.
@@ -15,9 +17,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install -r requirements.txt
 
 # Setup database.
-RUN rm db.sqlite \
-    && touch db.sqlite \
-    && sqlite3 db.sqlite <db-schema.txt
+RUN touch "${DB}" \
+    && sqlite3 "${DB}" <db-schema.txt
 
 EXPOSE 8080
 

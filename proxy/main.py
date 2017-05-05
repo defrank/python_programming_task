@@ -6,7 +6,7 @@
 from gevent import monkey; monkey.patch_all()
 
 # Stdlib.
-from os import path as ospath
+from os import environ, path as ospath
 from time import sleep
 from urllib.parse import urlparse, urlunparse
 
@@ -104,6 +104,5 @@ if __name__ == '__main__':
     from bottle import install, run
     from bottle.ext.sqlite import SQLitePlugin
 
-    install(SQLitePlugin(dbfile=ospath.join(PROJECT_DIRECTORY, 'db.sqlite'),
-                         dictrows=True))
+    install(SQLitePlugin(dbfile=environ.get('DB'), dictrows=True))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)

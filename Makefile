@@ -9,7 +9,8 @@ COPY = pbcopy
 PASTE = pbpaste
 endif
 
-PROXY_NAME = pythonprogrammingtask_proxy_1
+NAME_PREFIX = pythonprogrammingtask_
+PROXY_NAME = ${NAME_PREFIX}proxy_1
 
 copy_id :
 	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
@@ -21,11 +22,17 @@ log : copy_id
 down :
 	docker-compose down
 
-build : down
+clean : down
+	docker images | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$3}' | xargs docker rmi
+
+build : down clean
 	docker-compose build
 
 up : build
 	docker-compose up -d
+
+stop :
+	docker-compose stop
 
 restart :
 	docker-compose restart
@@ -37,4 +44,4 @@ py : copy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
 
 sql : copy_id
-	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /app/db.sqlite
+	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite
