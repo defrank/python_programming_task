@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urlunparse
 
 # Related 3rd party.
 import requests
-from bottle import abort, get, post, request, template
+from bottle import abort, get, post, request, route, template
 
 
 ################################################################################
@@ -82,15 +82,31 @@ def preproxy():
     return rendered('proxy')
 
 
-@post('/')
-def proxy(db):
+@get('/stats')
+def stats(db):
     """
-    Proxy the POSTed `url` for the client.
+    Display proxy statistics:
+        * uptime
+        * total bytes transferred
+
+    """
+    start_time = globals().get('START_TIME', None)
+    assert start_time is not None, 'bottle app is not properly configured'
+
+    stats = load_stats(db, 'size')
+    return rendered('stats', uptime=datetime.now() - start_time,
+            total_bytes_transferred=sum(s['size'] for s in stats))
+
+
+@route('<url:re:.+>')
+def proxy(db, url):
+    """
+    Proxy the `url` for the client.
     Logs the proxied response data in the database.
 
     """
     # Get parameters.
-    url = urlparse(request.forms.get('url').strip(), scheme='http')
+    url = urlparse(url.strip(), scheme='http')
 
     # Validate parameters.
     if not url.netloc:
@@ -106,22 +122,6 @@ def proxy(db):
     else:
         store_proxy(db, url, response.status_code, response.content)
         return response
-
-
-@get('/stats')
-def stats(db):
-    """
-    Display proxy statistics:
-        * uptime
-        * total bytes transferred
-
-    """
-    start_time = globals().get('START_TIME', None)
-    assert start_time is not None, 'bottle app is not properly configured'
-
-    stats = load_stats(db, 'size')
-    return rendered('stats', uptime=datetime.now() - start_time,
-            total_bytes_transferred=sum(s['size'] for s in stats))
 
 
 ################################################################################
