@@ -12,8 +12,9 @@
                     content: ':';
                 }
             </style>
+
             <label for="url">URL</label>
-            <input id="url" name="url" type="text" />
+            <input id="url" name="url" type="url" required />
         </form>
     </body>
 </html>

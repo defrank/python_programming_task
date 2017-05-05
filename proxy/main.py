@@ -8,9 +8,11 @@ from gevent import monkey; monkey.patch_all()
 # Stdlib.
 from os import path as ospath
 from time import sleep
+from urllib.parse import urlparse, urlunparse
 
 # Related 3rd party.
-from bottle import abort, get, post, template
+import requests
+from bottle import abort, get, post, request, template
 
 
 ################################################################################
@@ -49,7 +51,24 @@ def preproxy():
 
 @post('/')
 def proxy():
-    abort(501, 'Not implemented!')
+    """
+    Proxy the POSTed `url` for the client.
+
+    """
+    # Get parameters.
+    url = urlparse(request.forms.get('url'), scheme='http')
+
+    # Validate parameters.
+    if not url.netloc:
+        abort(400, '`URL` does not contain a valid host')
+
+    # Return proxied response.
+    url = urlunparse(url)
+    try:
+        return requests.get(url)
+    except requests.exceptions.ConnectionError:
+        abort(502, 'Unable to proxy `{url}`'.format(url=url))
+
 
 
 @get('/stats')
