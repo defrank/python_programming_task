@@ -40,6 +40,22 @@ def rendered(name, **kwargs):
 
 
 ################################################################################
+# DATABASE
+################################################################################
+
+def store_proxy(db, url, status_code, content=''):
+    """Logs the proxy response information to the database."""
+
+    query = '''
+        INSERT INTO proxy_log (url, status_code, size)
+        VALUES (?, ?, ?)
+        ;
+    '''
+
+    db.execute(query, [url, status_code, len(content)])
+
+
+################################################################################
 # VIEWS
 ################################################################################
 
@@ -50,9 +66,10 @@ def preproxy():
 
 
 @post('/')
-def proxy():
+def proxy(db):
     """
     Proxy the POSTed `url` for the client.
+    Logs the proxied response data in the database.
 
     """
     # Get parameters.
@@ -62,17 +79,20 @@ def proxy():
     if not url.netloc:
         abort(400, '`URL` does not contain a valid host')
 
-    # Return proxied response.
+    # Log and return proxied response.
     url = urlunparse(url)
     try:
-        return requests.get(url)
+        response = requests.get(url)
     except requests.exceptions.ConnectionError:
+        store_proxy(db, url, 502)  # Logs 0 bytes, so doesn't get counted in stats.
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
-
+    else:
+        store_proxy(db, url, response.status_code, response.content)
+        return response
 
 
 @get('/stats')
-def stats():
+def stats(db):
     abort(501, 'Not implemented!')
 
 
