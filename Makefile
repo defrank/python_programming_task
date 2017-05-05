@@ -35,3 +35,6 @@ ssh : copy_id
 
 py : copy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
+
+sql : copy_id
+	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /app/db.sqlite
