@@ -25,7 +25,7 @@ down :
 	docker ps | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$1}' | xargs docker kill
 
 clean : down
-	docker images | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$3}' | xargs docker rmi
+	- docker images | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$3}' | xargs docker rmi
 	find . -type f -name "*.tmp" -exec rm {} + ;
 
 hardclean : clean
@@ -48,8 +48,13 @@ stop :
 restart :
 	docker-compose restart
 
-test : up
+test :
 	./tests.sh
+
+wait :
+	sleep 4
+
+hardtest : up restart wait test
 
 proxy_id :
 	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
@@ -58,11 +63,14 @@ proxy_id :
 proxy_log : proxy_id
 	docker logs $(shell ${PASTE})
 
+proxy_logf : proxy_id
+	docker logs -f $(shell ${PASTE})
+
 proxy_ssh : proxy_id
 	docker exec -it $(shell ${PASTE}) /bin/bash
 
 proxy_py : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
 
-proxy_sql : copy_id
+proxy_sql : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite
