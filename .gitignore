@@ -1,0 +1,12 @@
+# Backups.
+*~
+*.bak
+
+# macOS junk.
+.DS_Store
+
+# Python junk.
+*.pyc
+
+# Revision control the schema, not database content.
+*.sqlite
