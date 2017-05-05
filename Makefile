@@ -12,24 +12,35 @@ endif
 NAME_PREFIX = pythonprogrammingtask_
 PROXY_NAME = ${NAME_PREFIX}proxy_1
 
-copy_id :
-	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
-	@ ${PASTE}
+DOCKER_IDS = docker-ids.tmp
 
-log : copy_id
-	docker logs $(shell ${PASTE})
+ids :
+	docker ps | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$1}' > ${DOCKER_IDS}
+	
+logs : ids
+	for id in $(shell cat ${DOCKER_IDS}); do docker logs "$${id}"; done
 
 down :
 	docker-compose down
+	docker ps | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$1}' | xargs docker kill
 
 clean : down
 	docker images | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$3}' | xargs docker rmi
+	find . -type f -name "*.tmp" -exec rm {} + ;
+
+hardclean : clean
+	docker ps | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$1}' | xargs docker kill -f
+	docker images | tail -n +2 | awk '/${NAME_PREFIX}/ {print $$3}' | xargs docker rmi -f
+
 
 build : down clean
 	docker-compose build
 
-up : build
+up :
 	docker-compose up -d
+
+hardup : build up
+	@ echo
 
 stop :
 	docker-compose stop
@@ -37,11 +48,21 @@ stop :
 restart :
 	docker-compose restart
 
-ssh : copy_id
+test : up
+	./tests.sh
+
+proxy_id :
+	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
+	@ ${PASTE}
+
+proxy_log : proxy_id
+	docker logs $(shell ${PASTE})
+
+proxy_ssh : proxy_id
 	docker exec -it $(shell ${PASTE}) /bin/bash
 
-py : copy_id
+proxy_py : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
 
-sql : copy_id
+proxy_sql : copy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite
