@@ -11,11 +11,13 @@
             <thead>
                 <tr>
                     <th>Total bytes transferred</th>
+                    <th>Uptime</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td>{{ total_bytes_transferred }}</td>
+                    <td>{{ uptime }}</td>
                 </tr>
             </tbody>
         </table>

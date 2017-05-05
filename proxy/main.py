@@ -6,6 +6,7 @@
 from gevent import monkey; monkey.patch_all()
 
 # Stdlib.
+from datetime import datetime
 from os import environ, path as ospath
 from time import sleep
 from urllib.parse import urlparse, urlunparse
@@ -111,11 +112,16 @@ def proxy(db):
 def stats(db):
     """
     Display proxy statistics:
+        * uptime
         * total bytes transferred
 
     """
+    start_time = globals().get('START_TIME', None)
+    assert start_time is not None, 'bottle app is not properly configured'
+
     stats = load_stats(db, 'size')
-    return rendered('stats', total_bytes_transferred=sum(s['size'] for s in stats))
+    return rendered('stats', uptime=datetime.now() - start_time,
+            total_bytes_transferred=sum(s['size'] for s in stats))
 
 
 ################################################################################
@@ -126,5 +132,6 @@ if __name__ == '__main__':
     from bottle import install, run
     from bottle.ext.sqlite import SQLitePlugin
 
+    START_TIME = datetime.now()
     install(SQLitePlugin(dbfile=environ.get('DB'), dictrows=True))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)
