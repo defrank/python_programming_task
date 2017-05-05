@@ -55,6 +55,22 @@ def store_proxy(db, url, status_code, content=''):
     db.execute(query, [url, status_code, len(content)])
 
 
+def load_stats(db, *fields):
+    """Retrieves the stored proxy statistics."""
+
+    if not fields:
+        fields = ['id', 'url', 'status_code', 'size']
+
+    query = '''
+        SELECT {fields}
+        FROM proxy_log
+        WHERE size > ?
+        ;
+    '''.format(fields=', '.join(fields))
+
+    return db.execute(query, [0]).fetchall()
+
+
 ################################################################################
 # VIEWS
 ################################################################################
@@ -93,7 +109,13 @@ def proxy(db):
 
 @get('/stats')
 def stats(db):
-    abort(501, 'Not implemented!')
+    """
+    Display proxy statistics:
+        * total bytes transferred
+
+    """
+    stats = load_stats(db, 'size')
+    return rendered('stats', total_bytes_transferred=sum(s['size'] for s in stats))
 
 
 ################################################################################
