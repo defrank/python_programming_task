@@ -76,12 +76,6 @@ def load_stats(db, *fields):
 # VIEWS
 ################################################################################
 
-@get('/')
-def preproxy():
-    """The view that asks the user what to proxy."""
-    return rendered('proxy')
-
-
 @get('/stats')
 def stats(db):
     """
