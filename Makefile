@@ -15,6 +15,9 @@ copy_id :
 	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
 	@ ${PASTE}
 
+log : copy_id
+	docker logs $(shell ${PASTE})
+
 down :
 	docker-compose down
 
