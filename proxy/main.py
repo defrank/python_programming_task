@@ -81,5 +81,9 @@ def stats():
 ################################################################################
 
 if __name__ == '__main__':
-    from bottle import run
+    from bottle import install, run
+    from bottle.ext.sqlite import SQLitePlugin
+
+    install(SQLitePlugin(dbfile=ospath.join(PROJECT_DIRECTORY, 'db.sqlite'),
+                         dictrows=True))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)
