@@ -10,7 +10,7 @@ from os import path as ospath
 from time import sleep
 
 # Related 3rd party.
-from bottle import route, run, template
+from bottle import get, post, run, template
 
 
 ################################################################################
@@ -41,18 +41,18 @@ def rendered(name, **kwargs):
 # VIEWS
 ################################################################################
 
-@route('/', method='GET')
+@get('/')
 def preproxy():
     """The view that asks the user what to proxy."""
     return rendered('proxy')
 
 
-@route('/', method='POST')
+@post('/')
 def proxy():
     return 'Not implemented!'
 
 
-@route('/stats', method='GET')
+@get('/stats')
 def stats():
     return 'Not implemented!'
 
