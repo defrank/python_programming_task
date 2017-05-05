@@ -90,7 +90,7 @@ def proxy(db):
 
     """
     # Get parameters.
-    url = urlparse(request.forms.get('url'), scheme='http')
+    url = urlparse(request.forms.get('url').strip(), scheme='http')
 
     # Validate parameters.
     if not url.netloc:
