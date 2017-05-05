@@ -10,7 +10,7 @@ from os import path as ospath
 from time import sleep
 
 # Related 3rd party.
-from bottle import get, post, run, template
+from bottle import abort, get, post, template
 
 
 ################################################################################
@@ -49,12 +49,12 @@ def preproxy():
 
 @post('/')
 def proxy():
-    return 'Not implemented!'
+    abort(501, 'Not implemented!')
 
 
 @get('/stats')
 def stats():
-    return 'Not implemented!'
+    abort(501, 'Not implemented!')
 
 
 ################################################################################
@@ -62,4 +62,5 @@ def stats():
 ################################################################################
 
 if __name__ == '__main__':
+    from bottle import run
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)
