@@ -1,5 +1,8 @@
+# Required.
 bottle==0.12.13
 bottle_sqlite==0.1.3
 gevent==1.2.1
 requests==2.13.0
+
+# Optional.
 bpython==0.16
