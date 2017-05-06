@@ -72,20 +72,32 @@ fail() {
     fi
 }
 
+_get() {
+    local url="$1"
+    shift 1
+
+    if ! curl \
+                --silent \
+                --dump-header - \
+                "$@" \
+                "$url"; then
+        return 1
+    fi
+}
+
 test_get() {
     # Prints the status code to stdout.
+    local status=0
     local code="$1"
     local url="$2"
     local name="$3"
     shift 3
 
-    local output="$(curl \
-                        --silent \
-                        --output /dev/null \
-                        --dump-header - \
-                        --write-out "%{http_code}" \
-                        "$@" \
+    local output="$(_get \
                         "$url" \
+                        "$@" \
+                        --output /dev/null \
+                        --write-out "%{http_code}" \
                         )"
 
     # Split output between stdout and stderr.
@@ -94,36 +106,48 @@ test_get() {
         pass "$code" "$name" "$url"
     else
         fail "$code" "$name" "$url"
+        status=1
     fi
 
     if [ "$headers" = true ]; then
         head -n -2 <(echo "$output") | sed -e 's/^/    /' >&2  # headers to stderr
     fi
+
+    return $status
 }
 
 test_post() {
     # Prints the status code to stdout.
     # Should still use `--data` or `--form` option.
-    test_get "$@" --request POST
+    if ! test_get "$@" --request POST; then
+        return 1
+    fi
+
 }
 
 test_head() {
     # Prints the status code to stdout.
-    test_get "$@" --head
+    if ! test_get "$@" --head; then
+        return 1
+    fi
 }
 
 test_put() {
     # Prints the status code to stdout.
     # Should still use `--data` option?
     # Really need to use something other than curl...
-    test_get "$@" --request PUT
+    if ! test_get "$@" --request PUT; then
+        return 1
+    fi
 }
 
 test_delete() {
     # Prints the status code to stdout.
     # Should still use `--data` option?
     # Really need to use something other than curl...
-    test_get "$@" --request DELETE
+    if ! test_get "$@" --request DELETE; then
+        return 1
+    fi
 }
 
 
