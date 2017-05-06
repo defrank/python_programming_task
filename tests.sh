@@ -24,6 +24,7 @@ exit_success=true
 
 # Program options.
 debug=false
+headers=false
 failfast=false
 
 # Proxy specific.
@@ -95,7 +96,7 @@ test_get() {
         fail "$code" "$name" "$url"
     fi
 
-    if [ "$debug" = true ]; then
+    if [ "$headers" = true ]; then
         head -n -2 <(echo "$output") | sed -e 's/^/    /' >&2  # headers to stderr
     fi
 }
@@ -131,7 +132,7 @@ test_delete() {
 ################################################################################
 
 show_usage() {
-    echo "Usage: ${progname} [-h/-?] [-d] [-f]"
+    echo "Usage: ${progname} [-h/-?] [-i|-d] [-f]"
 }
 
 show_help() {
@@ -139,12 +140,13 @@ show_help() {
     echo
     echo 'Help:'
     echo '    -h,-?     Show help.'
-    echo '    -d        Enable debug printing.'
+    echo '    -i        Enable header printing.'
+    echo '    -d        Enable debug printing.  Forces -i on.'
     echo '    -f        Enable fail fast.'
 }
 
 OPTIND=1
-while getopts 'h?df' opt; do
+while getopts 'h?idf' opt; do
     if [ "${OPTARG:0:1}" = '-' ]; then
         show_usage
         exit 2
@@ -157,6 +159,9 @@ while getopts 'h?df' opt; do
             ;;
         d)  # --debug
             debug=true
+            ;&
+        i)  # --headers
+            headers=true
             ;;
         f)  # --failfast
             failfast=true
