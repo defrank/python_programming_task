@@ -19,6 +19,15 @@ from bottle import abort, get, request, response, route, template, \
 
 
 ################################################################################
+# HELPERS
+################################################################################
+
+def get_size(r):
+    """Return the content length of a request or response object."""
+    return getattr(r, 'content_length', len(r.content))
+
+
+################################################################################
 # VALIDATORS
 ################################################################################
 
@@ -65,7 +74,7 @@ def validate_headers_and_query_equal(request, **only):
 # DATABASE
 ################################################################################
 
-def store_proxy(db, url, status_code, content=''):
+def store_proxy(db, url, status_code, content_length=0):
     """Logs the proxy response information to the database."""
 
     query = '''
@@ -74,7 +83,7 @@ def store_proxy(db, url, status_code, content=''):
         ;
     '''
 
-    db.execute(query, [url, status_code, len(content)])
+    db.execute(query, [url, status_code, content_length])
 
 
 def load_stats(db, *fields):
@@ -140,12 +149,11 @@ def proxy(db, url):
         store_proxy(db, url, 502)  # Logs 0 bytes, so doesn't get counted in stats.
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
     else:
-        store_proxy(db, url, proxy_response.status_code, proxy_response.content)
+        store_proxy(db, url, proxy_response.status_code, get_size(proxy_response))
 
         response = LocalResponse(body=proxy_response.text,
                                  status=proxy_response.status_code,
-                                 headers=dict(proxy_response.headers),
-                                 content_length=len(proxy_response.content))
+                                 headers=dict(proxy_response.headers))
 
         # Add cookies.
         for c, v in proxy_response.cookies.items():
