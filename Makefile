@@ -60,17 +60,17 @@ proxy_id :
 	@ docker ps | tail -n +2 | awk '/${PROXY_NAME}/ {print $$1}' | ${COPY}
 	@ ${PASTE}
 
-proxy_log : proxy_id
+log : proxy_id
 	docker logs $(shell ${PASTE})
 
-proxy_logf : proxy_id
+logf : proxy_id
 	docker logs -f $(shell ${PASTE})
 
-proxy_ssh : proxy_id
+ssh : proxy_id
 	docker exec -it $(shell ${PASTE}) /bin/bash
 
-proxy_py : proxy_id
+py : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env bpython
 
-proxy_sql : proxy_id
+sql : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite
