@@ -201,16 +201,29 @@ done
 echo "http_proxy: ${http_proxy}"
 echo
 
-echo '################################'
-echo 'Proxy Tests'
 old_failfast=$failfast
 failfast=true
+
+if [ "$debug" = true ]; then
+    echo '################################'
+    echo 'Debug Tests'
+    if ! _get "${test_url}"; then
+        fail
+    fi
+    echo
+    echo
+fi
+
+echo '################################'
+echo 'Validation Tests'
 test_head 200 "${test_url}" 'validate url 0'
 test_head 200 "${test_url_1}" 'validate url 1'
 test_head 200 "${test_url_2}" 'validate url 2'
 test_head 200 "${test_url_3}" 'validate url 3'
 test_head 200 "${test_url_4}" 'validate url 4'
 test_head 200 "${test_url_5}" 'validate url 5'
+echo
+
 failfast=$old_failfast
 
 
