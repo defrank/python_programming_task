@@ -30,10 +30,18 @@ failfast=false
 export http_proxy="http://localhost:8080"
 
 # Test specific.
-test_domain='derekmfrank.com'
+test_domain='www.google.com'
 test_origin="http://${test_domain}"
-test_path='/assets/img/dmf-snowboarding-lens-flare.jpg'
-test_url="${test_origin}${test_path}"
+test_url="${test_origin}/"
+# https://linhost.info/2013/10/download-test-files/
+# CacheFly
+test_url_1='http://cachefly.cachefly.net/100mb.test'
+# SoftLayer
+test_url_2='http://speedtest.dal01.softlayer.com/downloads/test100.zip'
+test_url_3='http://speedtest.sea01.softlayer.com/downloads/test100.zip'
+# Linode
+test_url_4='http://mirror.nl.leaseweb.net/speedtest/1000mb.bin'
+test_url_5='http://mirror.us.leaseweb.net/speedtest/1000mb.bin'
 
 
 ################################################################################
@@ -158,12 +166,29 @@ done
 
 
 ################################################################################
-# MAIN - TESTS
+# MAIN - VALIDATE INPUT
 ################################################################################
 
 echo "http_proxy: ${http_proxy}"
-
 echo
+
+echo '################################'
+echo 'Proxy Tests'
+old_failfast=$failfast
+failfast=true
+test_head 200 "${test_url}" 'validate url 0'
+test_head 200 "${test_url_1}" 'validate url 1'
+test_head 200 "${test_url_2}" 'validate url 2'
+test_head 200 "${test_url_3}" 'validate url 3'
+test_head 200 "${test_url_4}" 'validate url 4'
+test_head 200 "${test_url_5}" 'validate url 5'
+failfast=$old_failfast
+
+
+################################################################################
+# MAIN - TESTS
+################################################################################
+
 echo '################################'
 echo 'Proxy Tests'
 test_get 200 "${test_origin}/" 'basic success'
@@ -179,10 +204,14 @@ test_get 200 "${test_origin}/?range=1-50" 'ranges equal' --header 'Range: 1-50'
 test_get 200 "${test_origin}/?rAnGe=1-50" 'differing ranges mixed case succeeds' --header 'RangE: 5-10'
 
 echo
+
 echo '################################'
 echo 'Stats Tests'
 test_get 200 "${http_proxy}/stats" 'basic success'
+echo
 
 if [ "$exit_success" = false ]; then
     exit 1
+else
+    echo 'VALID!'
 fi
