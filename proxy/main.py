@@ -125,12 +125,21 @@ def proxy(db, url):
 
     # Log and return proxied response.
     try:
-        response = requests.request(request.method, url)
-    except requests.exceptions.ConnectionError:
+        proxy_response = requests.request(method=request.method,
+                                          url=url,
+                                          headers=request.headers,
+                                          files=request.files,
+                                          data=request.forms or request.body,
+                                          json=request.json,
+                                          params=request.query,
+                                          auth=request.auth,
+                                          cookies=request.cookies)
+    except (requests.exceptions.ConnectionError,
+            requests.packages.urllib3.exceptions.NewConnectionError):
         store_proxy(db, url, 502)  # Logs 0 bytes, so doesn't get counted in stats.
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
     else:
-        store_proxy(db, url, response.status_code, response.content)
+        store_proxy(db, url, proxy_response.status_code, proxy_response.content)
         return response
 
 
