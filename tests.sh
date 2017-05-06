@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+################################################################################
+#
+# Dependencies:
+#     curl
+#
+################################################################################
 
 ################################################################################
 # OPTIONS
@@ -12,46 +18,25 @@ set -o pipefail
 # GLOBALS
 ################################################################################
 
+# Program metadata.
+progname="$0"
+
+# Program options.
+debug=false
+
+# Proxy specific.
 export http_proxy="http://localhost:8080"
 
+# Test specific.
 test_domain='derekmfrank.com'
 test_origin="http://${test_domain}"
 test_path='/assets/img/dmf-snowboarding-lens-flare.jpg'
 test_url="${test_origin}${test_path}"
 
 
-
 ################################################################################
 # HELPERS
 ################################################################################
-
-get() {
-    local url="$1"
-    shift 1
-
-    curl -s -o /dev/null -w "%{http_code}" "$@" "$url"
-}
-
-post() {
-    # Should still use `--data` or `--form` option.
-    get "$@" --request POST
-}
-
-head() {
-    get "$@" --head
-}
-
-put() {
-    # Should still use `--data` option?
-    # Really need to use something other than curl...
-    get "$@" --request PUT
-}
-
-delete() {
-    # Should still use `--data` option?
-    # Really need to use something other than curl...
-    get "$@" --request DELETE
-}
 
 pass() {
     local code="$1"
@@ -73,34 +58,97 @@ fail() {
 }
 
 test_get() {
+    # Prints the status code to stdout.
     local code="$1"
     local url="$2"
     local name="$3"
     shift 3
 
-    if [ $(get "$url" "$@") -eq "$code" ]; then
+    local output="$(curl \
+                        --silent \
+                        --output /dev/null \
+                        --dump-header - \
+                        --write-out "%{http_code}" \
+                        "$@" \
+                        "$url" \
+                        )"
+
+    # Split output between stdout and stderr.
+    # status code to stdout
+    if [ "$(tail -n 1 <(echo "$output"))" -eq "$code" ]; then
         pass "$code" "$name" "$url"
     else
         fail "$code" "$name" "$url"
     fi
+
+    if [ "$debug" = true ]; then
+        head -n -2 <(echo "$output") | sed -e 's/^/    /' >&2  # headers to stderr
+    fi
 }
 
 test_post() {
-    local code="$1"
-    local url="$2"
-    local name="$3"
-    shift 3
+    # Prints the status code to stdout.
+    # Should still use `--data` or `--form` option.
+    test_get "$@" --request POST
+}
 
-    if [ $(post "$url" "$@") -eq "$code" ]; then
-        pass "$code" "$name" "$url $@"
-    else
-        fail "$code" "$name" "$url $@"
-    fi
+test_head() {
+    # Prints the status code to stdout.
+    test_get "$@" --head
+}
+
+test_put() {
+    # Prints the status code to stdout.
+    # Should still use `--data` option?
+    # Really need to use something other than curl...
+    test_get "$@" --request PUT
+}
+
+test_delete() {
+    # Prints the status code to stdout.
+    # Should still use `--data` option?
+    # Really need to use something other than curl...
+    test_get "$@" --request DELETE
 }
 
 
 ################################################################################
-# TESTS
+# MAIN - OPTIONS
+################################################################################
+
+show_usage() {
+    echo "Usage: ${progname} [-h/-?] [-d]"
+}
+
+show_help() {
+    show_usage
+    echo
+    echo 'Help:'
+    echo '    -h,-?     Show help.'
+    echo '    -d        Enable debug printing.'
+}
+
+OPTIND=1
+while getopts 'h?d' opt; do
+    if [ "${OPTARG:0:1}" = '-' ]; then
+        show_usage
+        exit 2
+    fi
+
+    case "$opt" in
+        h|\?)  # --help
+            show_help
+            exit 0
+            ;;
+        d)  # --debug
+            debug=true
+            ;;
+    esac
+done
+
+
+################################################################################
+# MAIN - TESTS
 ################################################################################
 
 echo "http_proxy: ${http_proxy}"
