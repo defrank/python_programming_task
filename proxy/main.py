@@ -67,7 +67,7 @@ def stats(db):
                 total_bytes_transferred=sum(s['size'] for s in stats))
 
 
-@route('<url:re:.+>')
+@route('<url:re:.+>', method=['HEAD', 'GET', 'POST', 'PUT', 'DELETE'])
 def proxy(db, url):
     """
     Proxy the `url` for the client.
@@ -84,7 +84,7 @@ def proxy(db, url):
     # Log and return proxied response.
     url = urlunparse(url)
     try:
-        response = requests.get(url)
+        response = requests.request(request.method, url)
     except requests.exceptions.ConnectionError:
         store_proxy(db, url, 502)  # Logs 0 bytes, so doesn't get counted in stats.
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
