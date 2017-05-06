@@ -20,9 +20,11 @@ set -o pipefail
 
 # Program metadata.
 progname="$0"
+exit_success=true
 
 # Program options.
 debug=false
+failfast=false
 
 # Proxy specific.
 export http_proxy="http://localhost:8080"
@@ -54,7 +56,11 @@ fail() {
     shift 3
 
     echo "FAILED $code $name: $url $@"
-    exit 1
+
+    exit_success=false
+    if [ "$failfast" = true ]; then
+        exit 1
+    fi
 }
 
 test_get() {
@@ -117,7 +123,7 @@ test_delete() {
 ################################################################################
 
 show_usage() {
-    echo "Usage: ${progname} [-h/-?] [-d]"
+    echo "Usage: ${progname} [-h/-?] [-d] [-f]"
 }
 
 show_help() {
@@ -126,10 +132,11 @@ show_help() {
     echo 'Help:'
     echo '    -h,-?     Show help.'
     echo '    -d        Enable debug printing.'
+    echo '    -f        Enable fail fast.'
 }
 
 OPTIND=1
-while getopts 'h?d' opt; do
+while getopts 'h?df' opt; do
     if [ "${OPTARG:0:1}" = '-' ]; then
         show_usage
         exit 2
@@ -142,6 +149,9 @@ while getopts 'h?d' opt; do
             ;;
         d)  # --debug
             debug=true
+            ;;
+        f)  # --failfast
+            failfast=true
             ;;
     esac
 done
@@ -172,3 +182,7 @@ echo
 echo '################################'
 echo 'Stats Tests'
 test_get 200 "${http_proxy}/stats" 'basic success'
+
+if [ "$exit_success" = false ]; then
+    exit 1
+fi
