@@ -6,38 +6,13 @@
 from gevent import monkey; monkey.patch_all()
 
 # Stdlib.
-from datetime import datetime
 from os import environ, path as ospath
-from time import sleep
+from time import sleep, time
 from urllib.parse import urlparse, urlunparse
 
 # Related 3rd party.
 import requests
 from bottle import abort, get, post, request, route, template
-
-
-################################################################################
-# GLOBALS
-################################################################################
-
-# Program specific.
-PROJECT_DIRECTORY = ospath.dirname(ospath.abspath(__file__))
-PROG_NAME = 'proxy'
-PROG_TITLE = 'Asynchronous HTTP Proxy'
-
-# Template stuff.
-TPL_DEFAULTS = {
-    'title': PROG_TITLE,
-}
-
-
-################################################################################
-# RENDER
-################################################################################
-
-def rendered(name, **kwargs):
-    """Include template defaults when rendering."""
-    return template(name, dict(TPL_DEFAULTS, **kwargs))
 
 
 ################################################################################
@@ -88,8 +63,8 @@ def stats(db):
     assert start_time is not None, 'bottle app is not properly configured'
 
     stats = load_stats(db, 'size')
-    return rendered('stats', uptime=datetime.now() - start_time,
-            total_bytes_transferred=sum(s['size'] for s in stats))
+    return dict(uptime=time() - start_time,
+                total_bytes_transferred=sum(s['size'] for s in stats))
 
 
 @route('<url:re:.+>')
@@ -126,6 +101,6 @@ if __name__ == '__main__':
     from bottle import install, run
     from bottle.ext.sqlite import SQLitePlugin
 
-    START_TIME = datetime.now()
+    START_TIME = time()
     install(SQLitePlugin(dbfile=environ.get('DB'), dictrows=True))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)
