@@ -14,7 +14,8 @@ from urllib.parse import urlparse, urlunparse
 
 # Related 3rd party.
 import requests
-from bottle import abort, get, post, request, response, route, template
+from bottle import abort, get, request, response, route, template, \
+        LocalResponse
 
 
 ################################################################################
@@ -140,6 +141,16 @@ def proxy(db, url):
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
     else:
         store_proxy(db, url, proxy_response.status_code, proxy_response.content)
+
+        response = LocalResponse(body=proxy_response.text,
+                                 status=proxy_response.status_code,
+                                 headers=dict(proxy_response.headers),
+                                 content_length=len(proxy_response.content))
+
+        # Add cookies.
+        for c, v in proxy_response.cookies.items():
+            response.set_cookie(c, v)
+
         return response
 
 
