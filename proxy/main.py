@@ -7,6 +7,8 @@ from gevent import monkey; monkey.patch_all()
 
 # Stdlib.
 from functools import reduce
+from itertools import chain
+from io import BytesIO
 from operator import and_
 from os import environ, path as ospath
 from time import sleep, time
@@ -22,9 +24,32 @@ from bottle import abort, get, request, response, route, template, \
 # HELPERS
 ################################################################################
 
+def bytesize(s):
+    """Return the size in bytes of given string, bytes or BytesIO."""
+    if isinstance(s, bytes):
+        s = s
+    elif isinstance(s, str):
+        s = s.encode('utf-8')
+    elif isinstance(s, BytesIO):
+        s = s.getbuffer()
+    else:
+        raise AssertionError('`s` must be bytes encodable: {0}'.format(type(s)))
+    return len(s)
+
+
+def dictsize(d):
+    """Return the size in bytes of the keys and values in the given dictionary."""
+    return sum(bytesize(s) for s in chain.from_iterable(d.items()))
+
+
 def get_size(r):
-    """Return the content length of a request or response object."""
-    return getattr(r, 'content_length', len(r.content))
+    """Return the size of a request or response object."""
+    payload = max(0,
+                  bytesize(getattr(r, 'content', '')),
+                  bytesize(getattr(r, 'body', '')),
+                  bytesize(getattr(r, 'text', '')))
+    headers = dictsize(r.headers)
+    return payload + headers
 
 
 ################################################################################
@@ -74,32 +99,33 @@ def validate_headers_and_query_equal(request, **only):
 # DATABASE
 ################################################################################
 
-def store_proxy(db, url, status_code, content_length=0):
+def store_proxy(db, url, status_code, request_size, response_size=0):
     """Logs the proxy response information to the database."""
+    assert all(size >= 0 for size in [request_size, response_size]), \
+            '`size` cannot be negative'
 
     query = '''
-        INSERT INTO proxy_log (url, status_code, size)
-        VALUES (?, ?, ?)
+        INSERT INTO proxy_log (url, status_code, request_size, response_size)
+        VALUES (?, ?, ?, ?)
         ;
     '''
 
-    db.execute(query, [url, status_code, content_length])
+    db.execute(query, [url, status_code, request_size, response_size])
 
 
 def load_stats(db, *fields):
     """Retrieves the stored proxy statistics."""
 
     if not fields:
-        fields = ['id', 'url', 'status_code', 'size']
+        fields = ['id', 'url', 'status_code', 'request_size', 'response_size']
 
     query = '''
         SELECT {fields}
         FROM proxy_log
-        WHERE size > ?
         ;
     '''.format(fields=', '.join(fields))
 
-    return db.execute(query, [0]).fetchall()
+    return db.execute(query).fetchall()
 
 
 ################################################################################
@@ -117,9 +143,10 @@ def stats(db):
     start_time = globals().get('START_TIME', None)
     assert start_time is not None, 'bottle app is not properly configured'
 
-    stats = load_stats(db, 'size')
+    stats = load_stats(db, 'request_size', 'response_size')
     return dict(uptime=time() - start_time,
-                total_bytes_transferred=sum(s['size'] for s in stats))
+                total_bytes_transferred=sum(s['request_size'] + s['response_size']
+                                            for s in stats))
 
 
 @route('<url:re:.+>', method=['HEAD', 'GET', 'POST', 'PUT', 'DELETE'])
@@ -146,10 +173,15 @@ def proxy(db, url):
                                           cookies=request.cookies)
     except (requests.exceptions.ConnectionError,
             requests.packages.urllib3.exceptions.NewConnectionError):
-        store_proxy(db, url, 502)  # Logs 0 bytes, so doesn't get counted in stats.
+        # Logs 0 bytes for reponse, so doesn't get counted in stats.
+        store_proxy(db, url, 502, get_size(request))
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
     else:
-        store_proxy(db, url, proxy_response.status_code, get_size(proxy_response))
+        store_proxy(db,
+                    url,
+                    proxy_response.status_code,
+                    get_size(request),
+                    get_size(proxy_response))
 
         response = LocalResponse(body=proxy_response.text,
                                  status=proxy_response.status_code,

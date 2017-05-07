@@ -51,6 +51,9 @@ restart :
 test :
 	./tests.sh
 
+stats :
+	curl 'http://localhost:8080/stats'
+
 wait :
 	sleep 4
 
