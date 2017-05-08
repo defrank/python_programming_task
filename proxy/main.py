@@ -6,6 +6,7 @@
 from gevent import monkey; monkey.patch_all()
 
 # Stdlib.
+from contextlib import closing
 from functools import reduce
 from itertools import chain
 from io import BytesIO
@@ -16,8 +17,7 @@ from urllib.parse import urlparse, urlunparse
 
 # Related 3rd party.
 import requests
-from bottle import abort, get, request, response, route, template, \
-        LocalResponse
+from bottle import abort, get, request, response, route, template
 from bottle.ext.sqlite import sqlite3 as database
 
 
@@ -174,37 +174,36 @@ def proxy(url):
     url = validate_url(url)
     validate_headers_and_query_equal(request, range=416)
 
+    for h, v in request.headers.items():
+        print('    ', h, v)
+
+    # Log client's request.
     store_proxy(url, 0, get_size(request), 0)
-
     # Log and return proxied response.
-    try:
-        proxy_response = requests.request(method=request.method,
-                                          url=url,
-                                          headers=request.headers,
-                                          files=request.files,
-                                          data=request.forms or request.body,
-                                          json=request.json,
-                                          params=request.query,
-                                          auth=request.auth,
-                                          cookies=request.cookies)
-    except (requests.exceptions.ConnectionError,
-            requests.packages.urllib3.exceptions.NewConnectionError):
-        # Logs 0 bytes for reponse, so doesn't get counted in stats.
-        store_proxy(url, 502, get_size(request))
-        abort(502, 'Unable to proxy `{url}`'.format(url=url))
-    else:
-        store_proxy(url, proxy_response.status_code,
-            get_size(request), get_size(proxy_response))
+    with requests.Session() as session:
+        with closing(session.request(stream=True,
+                                     method=request.method,
+                                     url=url,
+                                     headers=request.headers,
+                                     files=request.files,
+                                     data=request.forms or request.body,
+                                     json=request.json,
+                                     params=request.query,
+                                     auth=request.auth,
+                                     cookies=request.cookies)) as proxied:
+            store_proxy(url, proxied.status_code, 0, bytesize(proxied.content))
 
-        response = LocalResponse(body=proxy_response.text,
-                                 status=proxy_response.status_code,
-                                 headers=dict(proxy_response.headers))
+            # Forward proxied response headers to client.
+            response.status = proxied.status_code
+            for h,v in proxied.headers.items():
+                if h.lower() not in ['content-length', 'content-encoding']:
+                    response.set_header(h, v)
+            for c, v in proxied.cookies.items():
+                response.set_cookie(c, v)
 
-        # Add cookies.
-        for c, v in proxy_response.cookies.items():
-            response.set_cookie(c, v)
-
-        return response
+            # Build the client's response in chunks.
+            for chunk in proxied.iter_content(chunk_size=None):
+                yield chunk
 
 
 ################################################################################

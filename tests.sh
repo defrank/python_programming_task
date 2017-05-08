@@ -34,15 +34,18 @@ export http_proxy="http://localhost:8080"
 test_domain='www.google.com'
 test_origin="http://${test_domain}"
 test_url="${test_origin}/"
+test_bad_url='http://senrsent.rsienresaitn.aiertsnresitn/'
 # https://linhost.info/2013/10/download-test-files/
+test_url_1='http://mirrors.kernel.org/slackware/slackware64-13.0/source/a/bash/bash-3.1.tar.gz' # 2.4MB
+test_url_2='http://mirrors.kernel.org/slackware/slackware64-13.0/source/ap/vim/vim-7.2.tar.xz' # 5.6MB
 # CacheFly
-test_url_1='http://cachefly.cachefly.net/100mb.test'
+test_url_3='http://cachefly.cachefly.net/100mb.test'  # 100MB
 # SoftLayer
-test_url_2='http://speedtest.dal01.softlayer.com/downloads/test100.zip'
-test_url_3='http://speedtest.sea01.softlayer.com/downloads/test100.zip'
+test_url_4='http://speedtest.dal01.softlayer.com/downloads/test100.zip'  # 100MB
+test_url_5='http://speedtest.sea01.softlayer.com/downloads/test100.zip'  # 100MB
 # Linode
-test_url_4='http://mirror.nl.leaseweb.net/speedtest/1000mb.bin'
-test_url_5='http://mirror.us.leaseweb.net/speedtest/1000mb.bin'
+test_url_6='http://mirror.nl.leaseweb.net/speedtest/1000mb.bin'  # 100MB
+test_url_7='http://mirror.us.leaseweb.net/speedtest/1000mb.bin'  # 100MB
 
 
 ################################################################################
@@ -216,12 +219,20 @@ fi
 
 echo '################################'
 echo 'Validation Tests'
+http_proxy='' curl --head "${test_bad_url}" &>/dev/null
+if [ "$?" -eq 6 ]; then
+    pass '?' 'validate bad url 0' "${test_bad_url}"
+else
+    fail '?' 'validate bad url 0' "${test_bad_url}"
+fi
 test_head 200 "${test_url}" 'validate url 0'
 test_head 200 "${test_url_1}" 'validate url 1'
 test_head 200 "${test_url_2}" 'validate url 2'
 test_head 200 "${test_url_3}" 'validate url 3'
 test_head 200 "${test_url_4}" 'validate url 4'
 test_head 200 "${test_url_5}" 'validate url 5'
+test_head 200 "${test_url_6}" 'validate url 6'
+test_head 200 "${test_url_7}" 'validate url 7'
 echo
 
 failfast=$old_failfast
@@ -235,7 +246,7 @@ echo '################################'
 echo 'Proxy Tests'
 test_get 200 "${test_origin}/" 'basic success'
 test_get 200 "${test_domain}/" 'missing protocol succeeds'
-test_get 502 'http://senrsent.rsienresaitn.aiertsnresitn/' 'invalid host fails'
+test_get 500 "${test_bad_url}" 'invalid host fails'
 echo '#### Range tests'
 test_get 200 "${test_origin}/?range=1-50" 'basic range query param'
 test_get 200 "${test_origin}/" 'basic range header' --header 'Range: 1-50'
