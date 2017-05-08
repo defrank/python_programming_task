@@ -18,6 +18,14 @@ from urllib.parse import urlparse, urlunparse
 import requests
 from bottle import abort, get, request, response, route, template, \
         LocalResponse
+from bottle.ext.sqlite import sqlite3 as database
+
+
+################################################################################
+# GLOBALS
+################################################################################
+
+DATABASE = environ.get('DB')
 
 
 ################################################################################
@@ -99,7 +107,13 @@ def validate_headers_and_query_equal(request, **only):
 # DATABASE
 ################################################################################
 
-def store_proxy(db, url, status_code, request_size, response_size=0):
+def dbquery(query, *args):
+    with database.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        return cursor.execute(query, args).fetchall()
+
+
+def store_proxy(url, status_code, request_size, response_size=0):
     """Logs the proxy response information to the database."""
     assert all(size >= 0 for size in [request_size, response_size]), \
             '`size` cannot be negative'
@@ -110,10 +124,10 @@ def store_proxy(db, url, status_code, request_size, response_size=0):
         ;
     '''
 
-    db.execute(query, [url, status_code, request_size, response_size])
+    return dbquery(query, url, status_code, request_size, response_size)
 
 
-def load_stats(db, *fields):
+def load_stats(*fields):
     """Retrieves the stored proxy statistics."""
 
     if not fields:
@@ -125,7 +139,7 @@ def load_stats(db, *fields):
         ;
     '''.format(fields=', '.join(fields))
 
-    return db.execute(query).fetchall()
+    return dbquery(query)
 
 
 ################################################################################
@@ -133,7 +147,7 @@ def load_stats(db, *fields):
 ################################################################################
 
 @get('/stats')
-def stats(db):
+def stats():
     """
     Display proxy statistics:
         * uptime
@@ -143,14 +157,14 @@ def stats(db):
     start_time = globals().get('START_TIME', None)
     assert start_time is not None, 'bottle app is not properly configured'
 
-    stats = load_stats(db, 'request_size', 'response_size')
+    stats = load_stats('request_size', 'response_size')
     return dict(uptime=time() - start_time,
-                total_bytes_transferred=sum(s['request_size'] + s['response_size']
-                                            for s in stats))
+                total_bytes_transferred=sum(reqsize + respsize
+                                            for reqsize, respsize in stats))
 
 
 @route('<url:re:.+>', method=['HEAD', 'GET', 'POST', 'PUT', 'DELETE'])
-def proxy(db, url):
+def proxy(url):
     """
     Proxy the `url` for the client.
     Logs the proxied response data in the database.
@@ -159,6 +173,8 @@ def proxy(db, url):
     # Validations.
     url = validate_url(url)
     validate_headers_and_query_equal(request, range=416)
+
+    store_proxy(url, 0, get_size(request), 0)
 
     # Log and return proxied response.
     try:
@@ -174,14 +190,11 @@ def proxy(db, url):
     except (requests.exceptions.ConnectionError,
             requests.packages.urllib3.exceptions.NewConnectionError):
         # Logs 0 bytes for reponse, so doesn't get counted in stats.
-        store_proxy(db, url, 502, get_size(request))
+        store_proxy(url, 502, get_size(request))
         abort(502, 'Unable to proxy `{url}`'.format(url=url))
     else:
-        store_proxy(db,
-                    url,
-                    proxy_response.status_code,
-                    get_size(request),
-                    get_size(proxy_response))
+        store_proxy(url, proxy_response.status_code,
+            get_size(request), get_size(proxy_response))
 
         response = LocalResponse(body=proxy_response.text,
                                  status=proxy_response.status_code,
@@ -200,8 +213,6 @@ def proxy(db, url):
 
 if __name__ == '__main__':
     from bottle import install, run
-    from bottle.ext.sqlite import SQLitePlugin
 
     START_TIME = time()
-    install(SQLitePlugin(dbfile=environ.get('DB'), dictrows=True))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)

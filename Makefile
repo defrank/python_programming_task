@@ -77,3 +77,6 @@ py : proxy_id
 
 sql : proxy_id
 	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite
+
+tail : proxy_id
+	docker exec -it $(shell ${PASTE}) /usr/bin/env sqlite3 /var/tmp/proxy.sqlite 'SELECT * FROM proxy_log;'
