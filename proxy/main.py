@@ -61,38 +61,6 @@ def get_size(r):
 
 
 ################################################################################
-# VALIDATORS
-################################################################################
-
-def validate_headers_and_query_equal(request, **only):
-    """
-    Compare the header and query parameter values of the same key if they are
-    specified in `only` as keys.  Raises an HTTPError exception if the values
-    exist as a header and query parameter, but do not match.
-
-    Assume case matches for `only` and `request.query` keys.  Header keys are
-    treated case-insensitively via WSGIHeaderDict.
-
-    Status codes must be given as values in `only`.  They are used when raising
-    aborting.
-
-    Arguments:
-        request -- instance of Request containing header and query mappings
-        only -- mapping of header/query keys to error status_codes
-
-    """
-    headers, query = request.headers, request.query
-    # Compare unique keys that exist in `only`, `query`, and `header`.
-    for key in reduce(and_, map(set, [only, query])):
-        if key in headers and query[key] != headers[key]:
-            abort(only[key], '`{key}` query parameter differs from header: {v1} != {v2}'.format(
-                key=key,
-                v1=query[key],
-                v2=headers[key],
-            ))
-
-
-################################################################################
 # DATABASE
 ################################################################################
 
@@ -159,12 +127,6 @@ def proxy(url):
     Logs the proxied response data in the database.
 
     """
-    # Validations.
-    validate_headers_and_query_equal(request, range=416)
-
-    for h, v in request.headers.items():
-        print('    ', h, v)
-
     # Log client's request.
     store_proxy(url, 0, get_size(request), 0)
 
@@ -201,6 +163,8 @@ def proxy(url):
 
 if __name__ == '__main__':
     from bottle import install, run
+    from plugins.http import RangeRequestsPlugin
 
     START_TIME = time()
+    install(RangeRequestsPlugin())
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)
