@@ -64,17 +64,6 @@ def get_size(r):
 # VALIDATORS
 ################################################################################
 
-def validate_url(url):
-    # Strip and parse.
-    url = urlparse(url.strip(), scheme='http')
-
-    # Must have a hostname.
-    if not url.netloc:
-        abort(400, '`URL` does not contain a valid host')
-
-    return urlunparse(url)
-
-
 def validate_headers_and_query_equal(request, **only):
     """
     Compare the header and query parameter values of the same key if they are
@@ -171,7 +160,6 @@ def proxy(url):
 
     """
     # Validations.
-    url = validate_url(url)
     validate_headers_and_query_equal(request, range=416)
 
     for h, v in request.headers.items():
@@ -179,6 +167,7 @@ def proxy(url):
 
     # Log client's request.
     store_proxy(url, 0, get_size(request), 0)
+
     # Log and return proxied response.
     with requests.Session() as session:
         with closing(session.request(stream=True,
