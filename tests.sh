@@ -30,6 +30,10 @@ failfast=false
 # Proxy specific.
 export http_proxy="http://localhost:8080"
 
+# Files.
+filo_file="/var/tmp/proxy-async-test-filo-$$"
+lifo_file="/var/tmp/proxy-async-test-lifo-$$"
+
 # Test specific.
 test_domain='www.google.com'
 test_origin="http://${test_domain}"
@@ -255,7 +259,53 @@ test_get 200 "${test_origin}/" 'basic other header' --header 'Foobar: barbaz'
 test_get 416 "${test_origin}/?range=1-50" 'ranges differ' --header 'Range: 5-10'
 test_get 200 "${test_origin}/?range=1-50" 'ranges equal' --header 'Range: 1-50'
 test_get 200 "${test_origin}/?rAnGe=1-50" 'differing ranges mixed case succeeds' --header 'RangE: 5-10'
+echo '#### Async tests'
+test_filo() {
+    # Test async in conjunction with `test_lifo`.
+    # filo: first out, last in
+    local large_file="$1"
+    shift 1
+    test_get 200 "$large_file" 'filo'
+    date +'%s' >"$filo_file"
+}
+test_lifo() {
+    # Test async in conjunction with `test_filo`.
+    # lifo: last in, first out
+    local small_file="$1"
+    shift 1
+    test_get 200 "$small_file" 'lifo'
+    date +'%s' >"$lifo_file"
+}
+test_async() {
+    local large_file="$1"  # filo
+    local small_file="$2"  # lifo
+    shift 2
 
+    # Use files to store finish time of async subprocesses.
+    truncate -s 0 "$filo_file" "$lifo_file"
+
+    # Spawn async processes, wait for them to finish, then read in their finish
+    # times.
+    test_filo "$large_file" &
+    test_lifo "$small_file" &
+    wait
+    local filo=$(cat "$filo_file")
+    local lifo=$(cat "$lifo_file")
+
+    # Verify time order.
+    if [ -z "${filo}" ] && [ -z "${lifo}" ]; then
+        fail '?' "${filo} ${lifo}" 'bad filo and lifo in async test'
+    elif [ -z "${filo}" ]; then
+        fail '?' "${filo}" 'bad filo in async test'
+    elif [ -z "${lifo}" ]; then
+        fail '?' "${lifo}" 'bad lifo in async test'
+    elif [ "${filo}" -lt "${lifo}" ]; then
+        fail '?' "${filo} ${lifo}" 'filo beat lifo in async test'
+    else
+        pass '?' "${filo} ${lifo}" 'lifo beat filo in async test'
+    fi
+}
+test_async "${test_url_1}" "${test_url}"
 echo
 
 echo '################################'
