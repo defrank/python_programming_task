@@ -30,6 +30,9 @@ failfast=false
 # Proxy specific.
 export http_proxy="http://localhost:8080"
 
+# Variables instead of preprocessing.
+bytes='bytes%3D'
+
 # Files.
 filo_file="/var/tmp/proxy-async-test-filo-$$"
 lifo_file="/var/tmp/proxy-async-test-lifo-$$"
@@ -247,19 +250,22 @@ failfast=$old_failfast
 ################################################################################
 
 echo '################################'
-echo 'Proxy Tests'
+echo 'Proxy tests'
 test_get 200 "${test_origin}/" 'basic success'
 test_get 200 "${test_domain}/" 'missing protocol succeeds'
 test_get 500 "${test_bad_url}" 'invalid host fails'
-echo '#### Range tests'
-test_get 200 "${test_origin}/?range=1-50" 'basic range query param'
-test_get 200 "${test_origin}/" 'basic range header' --header 'Range: 1-50'
+echo '#### Range tests'  # urlencode of '=' is '%3D' 
+test_get 200 "${test_origin}/?range=${bytes}1-50" 'basic range query param'
+test_get 200 "${test_origin}/" 'basic range header' --header 'Range: bytes=1-50'
 test_get 200 "${test_origin}/?foobar=barbaz" 'basic other query param'
 test_get 200 "${test_origin}/" 'basic other header' --header 'Foobar: barbaz'
-test_get 416 "${test_origin}/?range=1-50" 'ranges differ' --header 'Range: 5-10'
-test_get 200 "${test_origin}/?range=1-50" 'ranges equal' --header 'Range: 1-50'
-test_get 200 "${test_origin}/?rAnGe=1-50" 'differing ranges mixed case succeeds' --header 'RangE: 5-10'
-echo '#### Async tests'
+test_get 416 "${test_origin}/?range=${bytes}1-50" 'ranges differ' --header 'Range: bytes=5-10'
+test_get 200 "${test_origin}/?range=${bytes}1-50" 'ranges equal' --header 'Range: bytes=1-50'
+test_get 200 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed case succeeds' --header 'RangE: bytes=5-10'
+echo
+
+echo '################################'
+echo '#### Async sanity checks'
 test_filo() {
     # Test async in conjunction with `test_lifo`.
     # filo: first out, last in
@@ -309,7 +315,7 @@ test_async "${test_url_1}" "${test_url}"
 echo
 
 echo '################################'
-echo 'Stats Tests'
+echo 'Stats tests'
 test_get 200 "${http_proxy}/stats" 'basic success'
 echo
 
