@@ -113,9 +113,9 @@ test_get() {
     # Split output between stdout and stderr.
     # status code to stdout
     if [ "$(tail -n 1 <(echo "$output"))" -eq "$code" ]; then
-        pass "$code" "$name" "$url"
+        pass "$code" "$name" "$url" "$@"
     else
-        fail "$code" "$name" "$url"
+        fail "$code" "$name" "$url" "$@"
         status=1
     fi
 
@@ -269,9 +269,24 @@ test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed differ
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed same case succeeds' --header 'rAnGe: bytes=5-10'
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed different case succeeds' --header 'RangE: bytes=1-50'
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed same case succeeds' --header 'rAnGe: bytes=1-50'
+# units tests
+test_get 416 "${test_origin}/" 'single-part bad units fails' --header 'Range: foobar=1-50'
+test_get 416 "${test_origin}/" 'multi-part bad units fails' --header 'Range: meters=1-50,-4'
 # multi-part
 test_get 206 "${test_origin}/?range=${bytes}1-50,4-,-35" 'multi-part query succeeds'
 test_get 206 "${test_origin}/" 'multi-part header succeeds' --header 'Range: bytes=-3,6-,5-10'
+# edge cases
+test_get 206 "${test_origin}/" 'single-part start 00 succeeds' --header 'Range: bytes=00-'
+test_get 206 "${test_origin}/" 'multi-part start 00 succeeds' --header 'Range: bytes=00-,1-5'
+test_get 206 "${test_origin}/" 'single-part single byte succeeds' --header 'Range: bytes=2-2'
+test_get 206 "${test_origin}/" 'multi-part single byte succeeds' --header 'Range: bytes=0-0,-3'
+test_get 416 "${test_origin}/" 'single-part 0 suffix fails' --header 'Range: bytes=-0'
+test_get 416 "${test_origin}/" 'multi-part all 0 suffix fails' --header 'Range: bytes=-0,-0,-0'
+test_get 206 "${test_origin}/" 'multi-part one 0 suffix succeeds' --header 'Range: bytes=2-2,-0'
+test_get 206 "${test_origin}/" 'single-part range set whitespace succeeds' --header 'Range: bytes=   2-2 '
+test_get 206 "${test_origin}/" 'multi-part range set whitespace succeeds' --header 'Range: bytes= -3, 2-2  ,1-'
+test_get 206 "${test_origin}/" 'single-part range set extra commas succeeds' --header 'Range: bytes=  , 2-2,, '
+test_get 206 "${test_origin}/" 'multi-part range set extra commas succeeds' --header 'Range: bytes=, -3, 2-2 , ,,1-'
 echo
 
 echo '################################'

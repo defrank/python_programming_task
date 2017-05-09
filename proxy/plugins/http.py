@@ -160,9 +160,9 @@ class RangeRequestsPlugin(object):
         # Show support for ranges.
         response.set_header('Accept-Ranges', UNITS)
 
+        clen = len(content)
         # `parse_range_header` follows RFC2616 specification for parsing byte
         # ranges.
-        clen = len(content)
         ranges = list(parse_range_header(ranges_specifier, clen))
         if ranges_specifier and not ranges:
             self.abort(ranges_specifier=ranges_specifier)
@@ -185,7 +185,8 @@ class RangeRequestsPlugin(object):
                 clen = end - start
             else:
                 # Multi-part ranges.
-                content_type = response.content_type
+                ctype = response.content_type
+                charset = response.charset
                 while True:
                     boundary = uuid4().hex.encode(response.charset)
                     if boundary not in content:
@@ -193,33 +194,28 @@ class RangeRequestsPlugin(object):
 
                 response.set_header(
                         'Content-Type',
-                        'multipart/byteranges; boundary={0}'.format(boundary))
+                        'multipart/byteranges; boundary={0}'.format(boundary.decode()))
 
+                # Build partial content bytes that will be joined by newlines.
                 parts = []
                 for start, end in ranges:
-                    parts.append(b'\n'.join(s if isinstance(s, bytes) else s.encode(response.charset) for s in [
-                        'Content-Type: {0}'.format(content_type),
-                        'Content-Range: {units} {start}-{end}/{clen}'.format(
-                            units=UNITS,
-                            start=start,
-                            end=end,
-                            clen=clen,
-                        ),
-                        '',  # Separate with a newline.
-                        content[start:end]
-                    ]))
+                    parts.extend([
+                        b'--%s' % boundary,
+                        b'Content-Type: %s' % ctype.encode(charset),
+                        b'Content-Range: %(units)s %(start)d-%(end)d/%(clen)d' % {
+                            b'units': UNITS.encode(charset),
+                            b'start': start,
+                            b'end': end - 1,
+                            b'clen': clen,
+                        },
+                        b'',  # Separate content from headers with a newline.
+                        content[start:end],
+                    ])
+                parts.append(b'--%s--' % boundary)
 
                 # Set partial content.
-                separator = b'--'
-                boundary = separator + boundary
-                newline = b'\n'
-                content = b'%(begin)s\n%(middle)s\n%(end)s' % {
-                    b'begin': boundary,
-                    b'middle': (newline + boundary + newline).join(parts),
-                    b'end': boundary + separator,
-                }
+                content = b'\n'.join(parts)
                 clen = len(content)
 
         response.content_length = str(clen)
-
         return content
