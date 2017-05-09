@@ -179,4 +179,4 @@ if __name__ == '__main__':
 
     START_TIME = time()
     install(RangeRequestsPlugin(request_range_callback))
-    run(server='gevent', host='0.0.0.0', port=8080, debug=True)
+    run(server='gevent', host='0.0.0.0', port=8080, debug=False)
