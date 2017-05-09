@@ -6,7 +6,8 @@
 import re
 
 # Related 3rd party.
-from bottle import abort, request, response
+from bottle import abort, parse_range_header, request, response, \
+        HTTPResponse, HTTPError
 from requests import codes
 
 
@@ -42,46 +43,48 @@ class RangeRequestsPlugin(object):
     api = 2
 
     def setup(self, app):
+        """
+        Called as soon as the plugin is installed to an application.  The only
+        parameter is the associated application.
+
+        """
         pass
 
     def apply(self, callback, context):
         """Replace the route callback with a wrapped one."""
 
         def wrapper(*args, **kwargs):
-            self.process_request()
-            body = callback(*args, **kwargs)
-            self.process_response()
-            return body
+            ranges_specifier = self.process_request()
+            content = callback(*args, **kwargs)
+            partial_content = self.process_response(content, ranges_specifier)
+            return content if partial_content is None else partial_content
 
         return wrapper
 
     def close(self):
+        """
+        Called immediately before the plugin is uninstalled or the application
+        is closed.
+
+        """
         pass
 
-    def abort(self, msg=None, range_specifier=None):
+    @classmethod
+    def abort(self, msg=None, ranges_specifier=None):
         if msg is None:
             msg = 'range not satisfiable'
-            if range_specifier is not None:
-                msg += ': {0}'.format(range_specifier)
+            if ranges_specifier is not None:
+                msg += ': {0}'.format(ranges_specifier)
         abort(codes.RANGE_NOT_SATISFIABLE, msg)
 
     def process_request(self):
         """
-        Parse the range value taken directly from the header or query.  May
-        abort with a 416 for a specified range that cannot be satisfied.
-
-        RFC2616:
-        * Only range unit defined is "bytes" (3.12 Range Units)
-          --> Implementation MAY ignore.  This implementation raise 416.
-        * Accepts single and multi-part ranges (14.35 Ranges)
-
-        References:
-            https://www.ietf.org/rfc/rfc2616.txt
-            https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests
-            https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Ranges
+        Get the range value taken directly from the header or query.  Will
+        abort with a 416 if range is specified in more than one place (e.g.,
+        header and query), but the values are not equal.
 
         Returns:
-            list -- of tuples containing start and end integer values
+            str or None -- ranges specifier as specified by client request
 
         """
         specifiers = [
@@ -92,7 +95,7 @@ class RangeRequestsPlugin(object):
 
         # Validate header and range values are equivalent if both are present.
         # Return if neither is present.
-        print('SPECS:', specifiers)
+        # Allows for `specifiers` to be more than just a header and range value.
         if sum(1 if s is None else 0 for s in specifiers) >= len(specifiers) - 1:
             if specifier is None:
                 return
@@ -102,51 +105,64 @@ class RangeRequestsPlugin(object):
                 values=' != '.join(filter(lambda s: s is not None, specifiers)),
             ))
 
-        try:
-            units, range_set = specifier.split('=', 1)
-        except ValueError:
-            self.abort(range_specifier=specifier)
+        return specifier
 
-        # Validate specified units.
-        if units.strip().lower() != UNITS:
-            self.abort(range_specifier=specifier)
+    def process_response(self, content, ranges_specifier=None):
+        """
+        Determine if and what partial content should be sent to the client.
+        Modifies response headers to accomodate partial content.
 
-        # Get valid first and last byte range values.
-        ranges = []
-        specs = range_set.split(',')
-        for spec in (s.strip() for s in specs if s.strip()):
-            first = last = None  # first and last bytes.
-            if RANGE_SPEC_REGEX.fullmatch(spec) is None:
-                continue  # Prevent crashing on stuff like injecting negative numbers.
-            elif spec.endswith('-'):
-                first = int(spec.strip('- '))
-            elif spec.startswith('-'):
-                last = -int(spec.strip('- '))
-            else:
-                first, last = (int(b.strip()) for b in spec.split('-'))
+        Since we only care about ranges for proxied content, only process the
+        ranges of content of a specific type (i.e., bytes and iterables of bytes).
 
-            # Skip malformed parts.
-            if all(b is None for b in [first, last]):
-                continue
-            elif first is None and abs(last) > content_length:
-                continue
-            elif last is None and first >= content_length:
-                continue
-            elif first > last:
-                continue
-            else:
-                ranges.append((first, last))
+        References:
+            https://www.ietf.org/rfc/rfc2616.txt
+            https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests
+            https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Ranges
 
-        if specs and not ranges:
-            abort(codes.RANGE_NOT_SATISFIABLE, 'unsatisfiable byte-range-set')
+        Arguments:
+            content -- response content of a type that Bottle accepts
+            ranges_specifier -- str of RFC2616 ranges specified by client
 
-        return ranges
+        Returns:
+            bytes or None -- partial content specified by ranges
 
-    def process_response(self, ranges=[]):
+        """
         if response.status_code == codes.PARTIAL_CONTENT:
-            return  # Already dealt with.  TODO: Verify gzip encoded responses.
+            return  # Already dealt with.
         elif response.status_code >= codes.bad:
-            return # Do not process a bad response.
+            return  # Do not process a bad response.
+
+        # Assume a proxied content type will only be bytes or iterable of bytes.
+        # TODO: consider content size and use a buffer or file object.
+        if not isinstance(content, bytes):
+            try:
+                content = b''.join(b for b in (content() if callable(content) else content))
+            except TypeError:
+                return
 
         # Show support for ranges.
         response.set_header('Accept-Ranges', UNITS)
+
+        # `parse_range_header` follows RFC2616 specification for parsing byte
+        # ranges.
+        clen = len(content)
+        ranges = list(parse_range_header(ranges_specifier, clen))
+        if ranges_specifier and not ranges:
+            self.abort(ranges_specifier=ranges_specifier)
+        elif ranges:
+            # TODO: support multi-part ranges.
+            start, end = ranges[0]
+
+            response.status = codes.PARTIAL_CONTENT
+            response.set_header('Content-Range', '{units} {start}-{end}/{clen}'.format(
+                units=UNITS,
+                start=start,
+                end=end - 1,
+                clen=clen,
+            ))
+            response.set_header('Content-Length', str(end - start))
+
+            content = content[start:end]
+
+        return content

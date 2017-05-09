@@ -255,13 +255,20 @@ test_get 200 "${test_origin}/" 'basic success'
 test_get 200 "${test_domain}/" 'missing protocol succeeds'
 test_get 500 "${test_bad_url}" 'invalid host fails'
 echo '#### Range tests'  # urlencode of '=' is '%3D' 
-test_get 200 "${test_origin}/?range=${bytes}1-50" 'basic range query param'
-test_get 200 "${test_origin}/" 'basic range header' --header 'Range: bytes=1-50'
-test_get 200 "${test_origin}/?foobar=barbaz" 'basic other query param'
+# Basic header tests.
+test_get 206 "${test_origin}/" 'basic range header' --header 'Range: bytes=1-50'
 test_get 200 "${test_origin}/" 'basic other header' --header 'Foobar: barbaz'
+# Basic query tests.
+test_get 206 "${test_origin}/?range=${bytes}1-50" 'basic range query param'
+test_get 200 "${test_origin}/?foobar=barbaz" 'basic other query param'
+# Basic both header and query tests.
 test_get 416 "${test_origin}/?range=${bytes}1-50" 'ranges differ' --header 'Range: bytes=5-10'
-test_get 200 "${test_origin}/?range=${bytes}1-50" 'ranges equal' --header 'Range: bytes=1-50'
-test_get 200 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed case succeeds' --header 'RangE: bytes=5-10'
+test_get 206 "${test_origin}/?range=${bytes}1-50" 'ranges equal' --header 'Range: bytes=1-50'
+# range query must be lowercase, header can be any
+test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed different case succeeds' --header 'RangE: bytes=5-10'
+test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed same case succeeds' --header 'rAnGe: bytes=5-10'
+test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed different case succeeds' --header 'RangE: bytes=1-50'
+test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed same case succeeds' --header 'rAnGe: bytes=1-50'
 echo
 
 echo '################################'
@@ -322,5 +329,5 @@ echo
 if [ "$exit_success" = false ]; then
     exit 1
 else
-    echo 'VALID!'
+    echo '100% VALID!'
 fi
