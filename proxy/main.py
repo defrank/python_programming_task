@@ -130,8 +130,8 @@ def proxy(url):
     """
     # Return proxied response.
     with requests.Session() as session:
-        with closing(session.request(stream=True,
-                                     method=request.method,
+        with closing(session.request(method=request.method,
+                                     stream=False,  # TODO: Support streaming.
                                      url=url,
                                      headers=request.headers,
                                      files=request.files,
