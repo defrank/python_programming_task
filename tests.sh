@@ -269,6 +269,9 @@ test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed differ
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'differing ranges mixed same case succeeds' --header 'rAnGe: bytes=5-10'
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed different case succeeds' --header 'RangE: bytes=1-50'
 test_get 206 "${test_origin}/?rAnGe=${bytes}1-50" 'same ranges mixed same case succeeds' --header 'rAnGe: bytes=1-50'
+# multi-part
+test_get 206 "${test_origin}/?range=${bytes}1-50,4-,-35" 'multi-part query succeeds'
+test_get 206 "${test_origin}/" 'multi-part header succeeds' --header 'Range: bytes=-3,6-,5-10'
 echo
 
 echo '################################'

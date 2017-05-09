@@ -4,6 +4,7 @@
 
 # Stdlib.
 import re
+from uuid import uuid4
 
 # Related 3rd party.
 from bottle import abort, parse_range_header, request, response, \
@@ -151,18 +152,58 @@ class RangeRequestsPlugin(object):
         if ranges_specifier and not ranges:
             self.abort(ranges_specifier=ranges_specifier)
         elif ranges:
-            # TODO: support multi-part ranges.
-            start, end = ranges[0]
-
             response.status = codes.PARTIAL_CONTENT
-            response.set_header('Content-Range', '{units} {start}-{end}/{clen}'.format(
-                units=UNITS,
-                start=start,
-                end=end - 1,
-                clen=clen,
-            ))
-            response.set_header('Content-Length', str(end - start))
 
-            content = content[start:end]
+            pclen = clen
+            if len(ranges) == 1:
+                # Single-part ranges.
+                start, end = ranges[0]
+
+                response.set_header('Content-Range', '{units} {start}-{end}/{clen}'.format(
+                    units=UNITS,
+                    start=start,
+                    end=end - 1,
+                    clen=clen,
+                ))
+
+                content = content[start:end]
+                pclen = end - start
+            else:
+                # Multi-part ranges.
+                content_type = response.content_type
+                while True:
+                    boundary = uuid4().hex.encode(response.charset)
+                    if boundary not in content:
+                        break
+
+                response.set_header(
+                        'Content-Type',
+                        'multipart/byteranges; boundary={0}'.format(boundary))
+
+                parts = []
+                for start, end in ranges:
+                    parts.append(b'\n'.join(s if isinstance(s, bytes) else s.encode(response.charset) for s in [
+                        'Content-Type: {0}'.format(content_type),
+                        'Content-Range: {units} {start}-{end}/{clen}'.format(
+                            units=UNITS,
+                            start=start,
+                            end=end,
+                            clen=clen,
+                        ),
+                        '',  # Separate with a newline.
+                        content[start:end]
+                    ]))
+
+                separator = b'--'
+                boundary = separator + boundary
+                newline = b'\n'
+                content = b'%(begin)s\n%(middle)s\n%(end)s' % {
+                    b'begin': boundary,
+                    b'middle': (newline + boundary + newline).join(parts),
+                    b'end': boundary + separator,
+                }
+                pclen = len(content)
+
+            response.set_header('Content-Length', str(pclen))
 
         return content
