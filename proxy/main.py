@@ -70,29 +70,30 @@ def dbquery(query, *args):
         return cursor.execute(query, args).fetchall()
 
 
-def store_proxy(url, status_code, request_size, response_size=0):
-    """Logs the proxy response information to the database."""
-    assert all(size >= 0 for size in [request_size, response_size]), \
-            '`size` cannot be negative'
+def store_stats(url, status_code, content_length=-1):
+    """Logs the response information to the database."""
+    if content_length is None:
+        content_length = response.content_length
 
     query = '''
-        INSERT INTO proxy_log (url, status_code, request_size, response_size)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO proxy_log (url, status_code, size)
+        VALUES (?, ?, ?)
         ;
     '''
 
-    return dbquery(query, url, status_code, request_size, response_size)
+    return dbquery(query, url, status_code, content_length)
 
 
 def load_stats(*fields):
     """Retrieves the stored proxy statistics."""
 
     if not fields:
-        fields = ['id', 'url', 'status_code', 'request_size', 'response_size']
+        fields = ['id', 'url', 'status_code', 'size']
 
     query = '''
         SELECT {fields}
         FROM proxy_log
+        WHERE size > 0
         ;
     '''.format(fields=', '.join(fields))
 
@@ -114,10 +115,10 @@ def stats():
     start_time = globals().get('START_TIME', None)
     assert start_time is not None, 'bottle app is not properly configured'
 
-    stats = load_stats('request_size', 'response_size')
-    return dict(uptime=time() - start_time,
-                total_bytes_transferred=sum(reqsize + respsize
-                                            for reqsize, respsize in stats))
+    return {
+        'uptime': time() - start_time,
+        'total_bytes_transferred': sum(s[0] for s in load_stats('size')),
+    }
 
 
 @route('<url:re:.+>', method=['HEAD', 'GET', 'POST', 'PUT', 'DELETE'])
@@ -127,10 +128,7 @@ def proxy(url):
     Logs the proxied response data in the database.
 
     """
-    # Log client's request.
-    store_proxy(url, 0, get_size(request), 0)
-
-    # Log and return proxied response.
+    # Return proxied response.
     with requests.Session() as session:
         with closing(session.request(stream=True,
                                      method=request.method,
@@ -142,12 +140,12 @@ def proxy(url):
                                      params=request.query,
                                      auth=request.auth,
                                      cookies=request.cookies)) as proxied:
-            store_proxy(url, proxied.status_code, 0, bytesize(proxied.content))
 
             # Forward proxied response headers to client.
             response.status = proxied.status_code
             for h,v in proxied.headers.items():
-                if h.lower() not in ['content-length', 'content-encoding']:
+                # TODO: support encoding GZip responses.
+                if h.lower() != 'content-encoding':
                     response.set_header(h, v)
             for c, v in proxied.cookies.items():
                 response.set_cookie(c, v)
@@ -155,6 +153,22 @@ def proxy(url):
             # Build the client's response in chunks.
             for chunk in proxied.iter_content(chunk_size=None):
                 yield chunk
+
+
+################################################################################
+# HOOKS/CALLBACKS
+################################################################################
+
+def request_range_callback(content):
+    """Store the size in bytes of the response."""
+    try:
+        size = response.content_length
+    except ValueError:
+        if isinstance(content, bytes):
+            size = len(content)
+        else:
+            size = -1
+    store_stats(request.url, response.status_code, size)
 
 
 ################################################################################
@@ -166,5 +180,5 @@ if __name__ == '__main__':
     from plugins.http import RangeRequestsPlugin
 
     START_TIME = time()
-    install(RangeRequestsPlugin())
+    install(RangeRequestsPlugin(request_range_callback))
     run(server='gevent', host='0.0.0.0', port=8080, debug=True)

@@ -43,6 +43,17 @@ class RangeRequestsPlugin(object):
     name = 'ranges'
     api = 2
 
+    def __init__(self, callback=None):
+        """
+        Initialize this instance.
+
+        Arguments:
+            callback -- function that get called with the processed response
+                content
+
+        """
+        self.callback = callback
+
     def setup(self, app):
         """
         Called as soon as the plugin is installed to an application.  The only
@@ -58,7 +69,11 @@ class RangeRequestsPlugin(object):
             ranges_specifier = self.process_request()
             content = callback(*args, **kwargs)
             partial_content = self.process_response(content, ranges_specifier)
-            return content if partial_content is None else partial_content
+            if partial_content is not None:
+                content = partial_content
+            if callable(self.callback):
+                self.callback(content)
+            return content
 
         return wrapper
 
@@ -154,7 +169,6 @@ class RangeRequestsPlugin(object):
         elif ranges:
             response.status = codes.PARTIAL_CONTENT
 
-            pclen = clen
             if len(ranges) == 1:
                 # Single-part ranges.
                 start, end = ranges[0]
@@ -166,8 +180,9 @@ class RangeRequestsPlugin(object):
                     clen=clen,
                 ))
 
+                # Set partial content.
                 content = content[start:end]
-                pclen = end - start
+                clen = end - start
             else:
                 # Multi-part ranges.
                 content_type = response.content_type
@@ -194,6 +209,7 @@ class RangeRequestsPlugin(object):
                         content[start:end]
                     ]))
 
+                # Set partial content.
                 separator = b'--'
                 boundary = separator + boundary
                 newline = b'\n'
@@ -202,8 +218,8 @@ class RangeRequestsPlugin(object):
                     b'middle': (newline + boundary + newline).join(parts),
                     b'end': boundary + separator,
                 }
-                pclen = len(content)
+                clen = len(content)
 
-            response.set_header('Content-Length', str(pclen))
+        response.content_length = str(clen)
 
         return content
