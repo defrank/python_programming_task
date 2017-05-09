@@ -34,13 +34,11 @@ DATABASE = environ.get('DB')
 
 def bytesize(s):
     """Return the size in bytes of given string, bytes or BytesIO."""
-    if isinstance(s, bytes):
-        s = s
-    elif isinstance(s, str):
+    if isinstance(s, str):
         s = s.encode('utf-8')
     elif isinstance(s, BytesIO):
         s = s.getbuffer()
-    else:
+    elif not isinstance(s, bytes):
         raise AssertionError('`s` must be bytes encodable: {0}'.format(type(s)))
     return len(s)
 
